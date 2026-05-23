@@ -1,0 +1,12 @@
+.env
+.env.*
+.venv
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+
+dataset/*.xlsx
+dataset/*.parquet
+dataset/*.zip

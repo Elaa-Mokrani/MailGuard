@@ -1,373 +1,343 @@
-import { useState } from 'react';
-import { motion } from 'motion/react';
+import { useMemo, useState } from "react";
+import { motion } from "motion/react";
 import {
   AlertTriangle,
-  Filter,
-  Search,
   Download,
-  ChevronDown,
-  TrendingUp,
+  Filter,
   Mail,
   Phone,
-} from 'lucide-react';
+  Search,
+  ShieldAlert,
+  TrendingUp,
+} from "lucide-react";
+import { useAPI } from "../hooks/useAPI";
+import { getEmails, type FrontEmail } from "../lib/api";
+import { normalizeRiskLevel, type RiskLevel } from "../lib/risk";
 
-interface Alert {
-  id: number;
+type AlertLevel = RiskLevel;
+
+interface AlertItem {
+  id: string;
   client: string;
-  niveau: 'faible' | 'moyen' | 'eleve';
-  montant: string;
+  niveau: AlertLevel;
+  montant: number | null;
+  reference_facture: string | null;
   action: string;
   date: string;
-  gestionnaire: string;
+  type_email: string;
+  interne: boolean;
 }
 
-const alerts: Alert[] = [
-  {
-    id: 1,
-    client: 'SAS Bernard',
-    niveau: 'eleve',
-    montant: '67 200 €',
-    action: 'Relance juridique immédiate',
-    date: '2026-02-16',
-    gestionnaire: 'Sophie Martin',
+const LEVEL_STYLES: Record<AlertLevel, { label: string; badge: string; accent: string }> = {
+  aucun: {
+    label: "Aucun risque",
+    badge: "bg-[#888780]/10 text-[#888780] border-[#888780]/20",
+    accent: "#888780",
   },
-  {
-    id: 2,
-    client: 'SARL Dupont & Fils',
-    niveau: 'eleve',
-    montant: '45 000 €',
-    action: 'Proposition échelonnement',
-    date: '2026-02-16',
-    gestionnaire: 'Jean Dupuis',
+  eleve: {
+    label: "Eleve",
+    badge: "bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20",
+    accent: "#EF4444",
   },
-  {
-    id: 3,
-    client: 'Transports Rousseau',
-    niveau: 'moyen',
-    montant: '34 500 €',
-    action: 'Appel téléphonique',
-    date: '2026-02-15',
-    gestionnaire: 'Marie Leblanc',
+  moyen: {
+    label: "Moyen",
+    badge: "bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/20",
+    accent: "#F59E0B",
   },
-  {
-    id: 4,
-    client: 'Industries Martin',
-    niveau: 'moyen',
-    montant: '23 500 €',
-    action: 'Email de suivi',
-    date: '2026-02-15',
-    gestionnaire: 'Sophie Martin',
+  faible: {
+    label: "Faible",
+    badge: "bg-[#6BCB77]/10 text-[#6BCB77] border-[#6BCB77]/20",
+    accent: "#6BCB77",
   },
-  {
-    id: 5,
-    client: 'Commerce Petit',
-    niveau: 'eleve',
-    montant: '52 800 €',
-    action: 'Mise en demeure',
-    date: '2026-02-14',
-    gestionnaire: 'Jean Dupuis',
-  },
-  {
-    id: 6,
-    client: 'Services Pro',
-    niveau: 'moyen',
-    montant: '18 200 €',
-    action: 'Email de rappel',
-    date: '2026-02-14',
-    gestionnaire: 'Marie Leblanc',
-  },
-  {
-    id: 7,
-    client: 'Construction Moderne',
-    niveau: 'faible',
-    montant: '12 400 €',
-    action: 'Surveillance mensuelle',
-    date: '2026-02-13',
-    gestionnaire: 'Sophie Martin',
-  },
-  {
-    id: 8,
-    client: 'Tech Solutions',
-    niveau: 'eleve',
-    montant: '89 500 €',
-    action: 'Réunion urgente',
-    date: '2026-02-13',
-    gestionnaire: 'Jean Dupuis',
-  },
-];
+};
+
+function getLevel(email: FrontEmail): AlertLevel {
+  return normalizeRiskLevel(email.risque_impaye, email.technicite ?? 0);
+}
+
+function getRecommendedAction(email: FrontEmail, level: AlertLevel): string {
+  const type = email.type_email.toLowerCase();
+  const hasInvoiceContext = Boolean(email.reference_facture || email.montant);
+
+  if (email.interne) {
+    if (level === "aucun") return "Classer comme information interne sans action urgente";
+    if (level === "eleve") return "Coordonner une action interne prioritaire avec le service concerne";
+    return "Transmettre au bon service Codix avec le contexte d'analyse";
+  }
+
+  if (type.includes("mise en demeure")) {
+    return "Preparer une reponse ferme et verifier le dossier facture avant envoi";
+  }
+
+  if (type.includes("contestation") || type.includes("litige")) {
+    return hasInvoiceContext
+      ? "Ouvrir un suivi litige avec la reference facture et demander les justificatifs"
+      : "Ouvrir un suivi litige et demander les elements manquants au client";
+  }
+
+  if (type.includes("relance") || type.includes("retard") || type.includes("impaye")) {
+    if (level === "eleve") return "Envoyer une relance prioritaire et proposer un point rapide";
+    return "Planifier une relance client avec rappel de l'echeance";
+  }
+
+  if (type.includes("confirmation")) {
+    return "Confirmer la bonne reception et mettre le dossier a jour";
+  }
+
+  if (level === "aucun") return "Aucune action prioritaire requise, conserver dans le suivi normal";
+  if (level === "eleve") return "Traiter en priorite et verifier le risque financier";
+  if (level === "moyen") return "Programmer un suivi sous 24h";
+  return "Surveiller et classer apres verification";
+}
+
+function formatCurrency(amount: number | null) {
+  if (typeof amount !== "number" || amount <= 0) return "Montant non detecte";
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
 
 export default function AlertsPage() {
-  const [selectedNiveau, setSelectedNiveau] = useState<string>('tous');
-  const [selectedGestionnaire, setSelectedGestionnaire] = useState<string>('tous');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedNiveau, setSelectedNiveau] = useState<string>("tous");
+  const [selectedType, setSelectedType] = useState<string>("tous");
+  const [searchTerm, setSearchTerm] = useState("");
 
-  const filteredAlerts = alerts.filter((alert) => {
-    const matchesNiveau = selectedNiveau === 'tous' || alert.niveau === selectedNiveau;
-    const matchesGestionnaire =
-      selectedGestionnaire === 'tous' || alert.gestionnaire === selectedGestionnaire;
-    const matchesSearch =
-      searchTerm === '' ||
-      alert.client.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      alert.action.toLowerCase().includes(searchTerm.toLowerCase());
-
-    return matchesNiveau && matchesGestionnaire && matchesSearch;
+  const { data: emails, loading, error, refetch } = useAPI<FrontEmail[]>(() => getEmails(250), {
+    delay: 0,
   });
 
-  const getNiveauBadge = (niveau: string) => {
-    switch (niveau) {
-      case 'eleve':
-        return {
-          label: 'Élevé',
-          color: 'bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20',
-        };
-      case 'moyen':
-        return {
-          label: 'Moyen',
-          color: 'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/20',
-        };
-      case 'faible':
-        return {
-          label: 'Faible',
-          color: 'bg-[#6BCB77]/10 text-[#6BCB77] border-[#6BCB77]/20',
-        };
-      default:
-        return { label: niveau, color: '' };
-    }
-  };
+  const alerts = useMemo<AlertItem[]>(() => {
+    return (emails ?? []).map((email) => {
+      const niveau = getLevel(email);
+      return {
+        id: email.email_id,
+        client: email.client_nom,
+        niveau,
+        montant: email.montant ?? null,
+        reference_facture: email.reference_facture ?? null,
+        action: getRecommendedAction(email, niveau),
+        date: email.date_envoi,
+        type_email: email.type_email,
+        interne: Boolean(email.interne),
+      };
+    });
+  }, [emails]);
+
+  const filteredAlerts = useMemo(() => {
+    return alerts.filter((alert) => {
+      const matchesNiveau = selectedNiveau === "tous" || alert.niveau === selectedNiveau;
+      const matchesType = selectedType === "tous" || alert.type_email === selectedType;
+      const matchesSearch =
+        searchTerm.trim() === "" ||
+        alert.client.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        alert.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        alert.type_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (alert.reference_facture ?? "").toLowerCase().includes(searchTerm.toLowerCase());
+
+      return matchesNiveau && matchesType && matchesSearch;
+    });
+  }, [alerts, searchTerm, selectedNiveau, selectedType]);
 
   const stats = {
     total: alerts.length,
-    eleve: alerts.filter((a) => a.niveau === 'eleve').length,
-    moyen: alerts.filter((a) => a.niveau === 'moyen').length,
-    faible: alerts.filter((a) => a.niveau === 'faible').length,
+    aucun: alerts.filter((alert) => alert.niveau === "aucun").length,
+    eleve: alerts.filter((alert) => alert.niveau === "eleve").length,
+    moyen: alerts.filter((alert) => alert.niveau === "moyen").length,
+    faible: alerts.filter((alert) => alert.niveau === "faible").length,
   };
+
+  const availableTypes = useMemo(() => {
+    return Array.from(new Set(alerts.map((alert) => alert.type_email))).filter(Boolean).slice(0, 12);
+  }, [alerts]);
 
   return (
     <div className="space-y-6">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-xl p-5 shadow-sm border border-[#E5E7EB]"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-[#6B7280] mb-1">Total alertes</p>
-              <p className="text-2xl font-semibold text-[#1E1E1E]">{stats.total}</p>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-[#B983FF]/10 flex items-center justify-center">
-              <AlertTriangle className="w-6 h-6 text-[#B983FF]" />
-            </div>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-white rounded-xl p-5 shadow-sm border border-[#E5E7EB]"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-[#6B7280] mb-1">Risque élevé</p>
-              <p className="text-2xl font-semibold text-[#EF4444]">{stats.eleve}</p>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-[#EF4444]/10 flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-[#EF4444]" />
-            </div>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white rounded-xl p-5 shadow-sm border border-[#E5E7EB]"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-[#6B7280] mb-1">Risque moyen</p>
-              <p className="text-2xl font-semibold text-[#F59E0B]">{stats.moyen}</p>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-[#F59E0B]/10 flex items-center justify-center">
-              <AlertTriangle className="w-6 h-6 text-[#F59E0B]" />
-            </div>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-white rounded-xl p-5 shadow-sm border border-[#E5E7EB]"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-[#6B7280] mb-1">Risque faible</p>
-              <p className="text-2xl font-semibold text-[#6BCB77]">{stats.faible}</p>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-[#6BCB77]/10 flex items-center justify-center">
-              <AlertTriangle className="w-6 h-6 text-[#6BCB77]" />
-            </div>
-          </div>
-        </motion.div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+        {[
+          { title: "Total alertes", value: stats.total, color: "bg-[#B983FF]/10 text-[#B983FF]", icon: AlertTriangle },
+          { title: "Aucun risque", value: stats.aucun, color: "bg-[#888780]/10 text-[#888780]", icon: AlertTriangle },
+          { title: "Risque eleve", value: stats.eleve, color: "bg-[#EF4444]/10 text-[#EF4444]", icon: TrendingUp },
+          { title: "Risque moyen", value: stats.moyen, color: "bg-[#F59E0B]/10 text-[#F59E0B]", icon: ShieldAlert },
+          { title: "Risque faible", value: stats.faible, color: "bg-[#6BCB77]/10 text-[#6BCB77]", icon: AlertTriangle },
+        ].map((item, index) => {
+          const Icon = item.icon;
+          return (
+            <motion.div
+              key={item.title}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.08 }}
+              className="rounded-2xl border border-border bg-card p-5 shadow-sm"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="mb-1 text-sm text-muted-foreground">{item.title}</p>
+                  <p className="text-2xl font-semibold text-foreground">{item.value}</p>
+                </div>
+                <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${item.color}`}>
+                  <Icon className="h-6 w-6" />
+                </div>
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
 
-      {/* Filters and Search */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-        className="bg-white rounded-2xl p-6 shadow-sm border border-[#E5E7EB]"
+        transition={{ delay: 0.3 }}
+        className="rounded-2xl border border-border bg-card p-6 shadow-sm"
       >
         <div className="flex flex-wrap items-center gap-4">
-          <div className="flex-1 min-w-[300px]">
+          <div className="min-w-[280px] flex-1">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6B7280]" />
+              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Rechercher un client ou une action..."
+                placeholder="Rechercher un client, une action ou une reference..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-[#F5F6FA] border border-[#E5E7EB] rounded-xl text-sm text-[#2F2F2F] placeholder-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#6BCB77]"
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="w-full rounded-xl border border-border bg-muted py-2.5 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-[#6B7280]" />
-              <span className="text-sm text-[#6B7280]">Filtres:</span>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Filter className="h-4 w-4" />
+              Filtres
             </div>
 
             <select
               value={selectedNiveau}
-              onChange={(e) => setSelectedNiveau(e.target.value)}
-              className="px-4 py-2.5 bg-[#F5F6FA] border border-[#E5E7EB] rounded-xl text-sm text-[#2F2F2F] focus:outline-none focus:ring-2 focus:ring-[#6BCB77] appearance-none cursor-pointer"
+              onChange={(event) => setSelectedNiveau(event.target.value)}
+              className="cursor-pointer rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             >
               <option value="tous">Tous les niveaux</option>
-              <option value="eleve">Risque élevé</option>
+              <option value="aucun">Aucun risque</option>
+              <option value="eleve">Risque eleve</option>
               <option value="moyen">Risque moyen</option>
               <option value="faible">Risque faible</option>
             </select>
 
             <select
-              value={selectedGestionnaire}
-              onChange={(e) => setSelectedGestionnaire(e.target.value)}
-              className="px-4 py-2.5 bg-[#F5F6FA] border border-[#E5E7EB] rounded-xl text-sm text-[#2F2F2F] focus:outline-none focus:ring-2 focus:ring-[#6BCB77] appearance-none cursor-pointer"
+              value={selectedType}
+              onChange={(event) => setSelectedType(event.target.value)}
+              className="cursor-pointer rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             >
-              <option value="tous">Tous les gestionnaires</option>
-              <option value="Sophie Martin">Sophie Martin</option>
-              <option value="Jean Dupuis">Jean Dupuis</option>
-              <option value="Marie Leblanc">Marie Leblanc</option>
+              <option value="tous">Tous les types</option>
+              {availableTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
             </select>
 
-            <button className="px-4 py-2.5 bg-[#B983FF] text-white rounded-xl text-sm font-medium hover:bg-[#A78BFA] transition-colors flex items-center gap-2">
-              <Download className="w-4 h-4" />
-              Exporter
+            <button
+              type="button"
+              onClick={refetch}
+              className="flex items-center gap-2 rounded-xl bg-secondary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:opacity-90"
+            >
+              <Download className="h-4 w-4" />
+              Actualiser
             </button>
           </div>
         </div>
       </motion.div>
 
-      {/* Alerts Table */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
-        className="bg-white rounded-2xl shadow-sm border border-[#E5E7EB] overflow-hidden"
+        transition={{ delay: 0.4 }}
+        className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
       >
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-[#F5F6FA] border-b border-[#E5E7EB]">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-[#2F2F2F] uppercase tracking-wider">
-                  Client
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-[#2F2F2F] uppercase tracking-wider">
-                  Niveau risque
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-[#2F2F2F] uppercase tracking-wider">
-                  Montant exposé
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-[#2F2F2F] uppercase tracking-wider">
-                  Action recommandée
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-[#2F2F2F] uppercase tracking-wider">
-                  Date
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-[#2F2F2F] uppercase tracking-wider">
-                  Gestionnaire
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-[#2F2F2F] uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E5E7EB]">
-              {filteredAlerts.map((alert, index) => {
-                const badge = getNiveauBadge(alert.niveau);
-
-                return (
-                  <motion.tr
-                    key={alert.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="hover:bg-[#F5F6FA]/50 transition-colors"
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#B983FF] to-[#A78BFA] flex items-center justify-center text-white text-xs font-semibold">
-                          {alert.client.charAt(0)}
+        {loading ? (
+          <div className="p-8 text-sm text-muted-foreground">Chargement des alertes...</div>
+        ) : error ? (
+          <div className="p-8 text-sm text-destructive">Impossible de charger les alertes depuis le backend.</div>
+        ) : filteredAlerts.length === 0 ? (
+          <div className="p-8 text-sm text-muted-foreground">Aucune alerte ne correspond aux filtres selectionnes.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="border-b border-border bg-muted/60">
+                <tr>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Client</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Risque</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Montant / Reference</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Action recommandee</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Type</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Date</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filteredAlerts.map((alert, index) => {
+                  const level = LEVEL_STYLES[alert.niveau];
+                  return (
+                    <motion.tr
+                      key={alert.id}
+                      initial={{ opacity: 0, x: -16 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.04 }}
+                      className="transition-colors hover:bg-muted/40"
+                    >
+                      <td className="whitespace-nowrap px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold text-white"
+                            style={{ backgroundColor: level.accent }}
+                          >
+                            {alert.client.charAt(0)}
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-foreground">{alert.client}</div>
+                            <div className="text-xs text-muted-foreground">{alert.interne ? "Email interne Codix" : "Email client"}</div>
+                          </div>
                         </div>
-                        <span className="text-sm font-medium text-[#1E1E1E]">
-                          {alert.client}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4">
+                        <span className={`inline-flex rounded-lg border px-3 py-1 text-xs font-medium ${level.badge}`}>
+                          {level.label}
                         </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`inline-flex px-3 py-1 rounded-lg text-xs font-medium border ${badge.color}`}
-                      >
-                        {badge.label}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-semibold text-[#1E1E1E]">
-                        {alert.montant}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm text-[#2F2F2F]">{alert.action}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-[#6B7280]">{alert.date}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-[#2F2F2F]">{alert.gestionnaire}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <button className="p-2 hover:bg-[#6BCB77]/10 rounded-lg transition-colors group">
-                          <Mail className="w-4 h-4 text-[#6B7280] group-hover:text-[#6BCB77]" />
-                        </button>
-                        <button className="p-2 hover:bg-[#B983FF]/10 rounded-lg transition-colors group">
-                          <Phone className="w-4 h-4 text-[#6B7280] group-hover:text-[#B983FF]" />
-                        </button>
-                      </div>
-                    </td>
-                  </motion.tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {filteredAlerts.length === 0 && (
-          <div className="py-12 text-center">
-            <p className="text-[#6B7280]">Aucune alerte ne correspond aux filtres sélectionnés</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="space-y-1">
+                          <div className="text-sm font-medium text-foreground">{formatCurrency(alert.montant)}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {alert.reference_facture ? `Ref: ${alert.reference_facture}` : "Reference non detectee"}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-foreground">{alert.action}</td>
+                      <td className="px-6 py-4 text-sm text-muted-foreground">{alert.type_email}</td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-muted-foreground">
+                        {new Date(alert.date).toLocaleString("fr-FR", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <button className="rounded-lg p-2 transition-colors hover:bg-primary/10 group">
+                            <Mail className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
+                          </button>
+                          <button className="rounded-lg p-2 transition-colors hover:bg-secondary/10 group">
+                            <Phone className="h-4 w-4 text-muted-foreground group-hover:text-secondary" />
+                          </button>
+                        </div>
+                      </td>
+                    </motion.tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </motion.div>

@@ -1,3 +1,51 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+backend/.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / Vite
 node_modules/
 dist/
-.env
+build/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Large ML artifacts
+*.keras
+*.h5
+*.tflite
+*.onnx
+*.pb
+*.ckpt
+checkpoint/
+
+# Optional generated datasets / local exports
+backend/dataset/*.xlsx
+backend/dataset/*.parquet
+backend/dataset/*.zip
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

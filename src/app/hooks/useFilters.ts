@@ -1,46 +1,62 @@
-import { useState, useMemo } from 'react';
-import { Email } from '../data/mockData';
+import { useMemo, useState } from "react";
+import { normalizeRiskLevel, type RiskLevel } from "../lib/risk";
+
+interface FilterableEmail {
+  langue: string;
+  type_email: string;
+  priorite: string;
+  client_nom: string;
+  sujet: string;
+  technicite?: number;
+  risque_impaye?: string;
+  interne?: boolean;
+}
 
 export interface Filters {
-  langue: 'ALL' | 'FR' | 'EN';
+  langue: "ALL" | "FR" | "EN";
   type_email: string;
-  client_sante: string;
+  risque: "ALL" | RiskLevel;
+  provenance: "ALL" | "interne" | "externe";
   priorite: string;
   searchTerm: string;
 }
 
-export function useFilters(emails: Email[]) {
+export function useFilters<T extends FilterableEmail>(emails: T[]) {
   const [filters, setFilters] = useState<Filters>({
-    langue: 'ALL',
-    type_email: 'ALL',
-    client_sante: 'ALL',
-    priorite: 'ALL',
-    searchTerm: '',
+    langue: "ALL",
+    type_email: "ALL",
+    risque: "ALL",
+    provenance: "ALL",
+    priorite: "ALL",
+    searchTerm: "",
   });
 
   const filteredEmails = useMemo(() => {
     return emails.filter((email) => {
-      // Filtre par langue
-      if (filters.langue !== 'ALL' && email.langue !== filters.langue) {
+      if (filters.langue !== "ALL" && email.langue !== filters.langue) {
         return false;
       }
 
-      // Filtre par type
-      if (filters.type_email !== 'ALL' && email.type_email !== filters.type_email) {
+      if (filters.type_email !== "ALL" && email.type_email !== filters.type_email) {
         return false;
       }
 
-      // Filtre par santé client
-      if (filters.client_sante !== 'ALL' && email.client_sante !== filters.client_sante) {
+      if (filters.risque !== "ALL" && normalizeRiskLevel(email.risque_impaye, email.technicite ?? 0) !== filters.risque) {
         return false;
       }
 
-      // Filtre par priorité
-      if (filters.priorite !== 'ALL' && email.priorite !== filters.priorite) {
+      if (filters.provenance === "interne" && !email.interne) {
         return false;
       }
 
-      // Recherche textuelle
+      if (filters.provenance === "externe" && email.interne) {
+        return false;
+      }
+
+      if (filters.priorite !== "ALL" && email.priorite !== filters.priorite) {
+        return false;
+      }
+
       if (filters.searchTerm) {
         const searchLower = filters.searchTerm.toLowerCase();
         return (
@@ -60,11 +76,12 @@ export function useFilters(emails: Email[]) {
 
   const resetFilters = () => {
     setFilters({
-      langue: 'ALL',
-      type_email: 'ALL',
-      client_sante: 'ALL',
-      priorite: 'ALL',
-      searchTerm: '',
+      langue: "ALL",
+      type_email: "ALL",
+      risque: "ALL",
+      provenance: "ALL",
+      priorite: "ALL",
+      searchTerm: "",
     });
   };
 

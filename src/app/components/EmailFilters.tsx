@@ -1,7 +1,7 @@
-import { motion } from 'motion/react';
-import { Filter, X, Search } from 'lucide-react';
-import { Filters } from '../hooks/useFilters';
-import { emailTypes, healthLevels } from '../data/mockData';
+import { motion } from "motion/react";
+import { Filter, Search, X } from "lucide-react";
+import { Filters } from "../hooks/useFilters";
+import { emailTypes } from "../data/mockData";
 
 interface EmailFiltersProps {
   filters: Filters;
@@ -12,20 +12,21 @@ interface EmailFiltersProps {
 
 export function EmailFilters({ filters, onFilterChange, onReset, totalResults }: EmailFiltersProps) {
   const hasActiveFilters =
-    filters.langue !== 'ALL' ||
-    filters.type_email !== 'ALL' ||
-    filters.client_sante !== 'ALL' ||
-    filters.priorite !== 'ALL' ||
-    filters.searchTerm !== '';
+    filters.langue !== "ALL" ||
+    filters.type_email !== "ALL" ||
+    filters.risque !== "ALL" ||
+    filters.provenance !== "ALL" ||
+    filters.priorite !== "ALL" ||
+    filters.searchTerm !== "";
 
   return (
-    <div className="bg-card rounded-xl p-4 shadow-sm border border-border mb-6">
-      <div className="flex items-center justify-between mb-4">
+    <div className="mb-6 rounded-xl border border-border bg-card p-4 shadow-sm">
+      <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Filter className="w-5 h-5 text-muted-foreground" />
+          <Filter className="h-5 w-5 text-muted-foreground" />
           <h3 className="font-semibold text-foreground">Filtres</h3>
           <span className="text-sm text-muted-foreground">
-            ({totalResults} résultat{totalResults > 1 ? 's' : ''})
+            ({totalResults} resultat{totalResults > 1 ? "s" : ""})
           </span>
         </div>
         {hasActiveFilters && (
@@ -33,43 +34,40 @@ export function EmailFilters({ filters, onFilterChange, onReset, totalResults }:
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={onReset}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-muted hover:bg-muted/80 rounded-lg transition-colors"
+            className="flex items-center gap-2 rounded-lg bg-muted px-3 py-1.5 text-sm transition-colors hover:bg-muted/80"
           >
-            <X className="w-4 h-4" />
-            Réinitialiser
+            <X className="h-4 w-4" />
+            Reinitialiser
           </motion.button>
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Recherche textuelle */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-6">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
             placeholder="Rechercher..."
             value={filters.searchTerm}
-            onChange={(e) => onFilterChange('searchTerm', e.target.value)}
-            className="w-full pl-10 pr-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            onChange={(event) => onFilterChange("searchTerm", event.target.value)}
+            className="w-full rounded-lg border border-border bg-background py-2 pl-10 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
 
-        {/* Filtre Langue */}
         <select
           value={filters.langue}
-          onChange={(e) => onFilterChange('langue', e.target.value)}
-          className="px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          onChange={(event) => onFilterChange("langue", event.target.value)}
+          className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
         >
           <option value="ALL">Toutes langues</option>
-          <option value="FR">🇫🇷 Français</option>
-          <option value="EN">🇬🇧 English</option>
+          <option value="FR">Francais</option>
+          <option value="EN">English</option>
         </select>
 
-        {/* Filtre Type d'email */}
         <select
           value={filters.type_email}
-          onChange={(e) => onFilterChange('type_email', e.target.value)}
-          className="px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          onChange={(event) => onFilterChange("type_email", event.target.value)}
+          className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
         >
           <option value="ALL">Tous types</option>
           {emailTypes.map((type) => (
@@ -79,27 +77,34 @@ export function EmailFilters({ filters, onFilterChange, onReset, totalResults }:
           ))}
         </select>
 
-        {/* Filtre Santé client */}
         <select
-          value={filters.client_sante}
-          onChange={(e) => onFilterChange('client_sante', e.target.value)}
-          className="px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          value={filters.risque}
+          onChange={(event) => onFilterChange("risque", event.target.value)}
+          className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
         >
-          <option value="ALL">Toutes santés</option>
-          {healthLevels.map((level) => (
-            <option key={level} value={level}>
-              {level}
-            </option>
-          ))}
+          <option value="ALL">Tous risques</option>
+          <option value="aucun">Aucun risque</option>
+          <option value="faible">Risque faible</option>
+          <option value="moyen">Risque moyen</option>
+          <option value="eleve">Risque eleve</option>
         </select>
 
-        {/* Filtre Priorité */}
+        <select
+          value={filters.provenance}
+          onChange={(event) => onFilterChange("provenance", event.target.value)}
+          className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+        >
+          <option value="ALL">Internes et externes</option>
+          <option value="interne">Emails internes</option>
+          <option value="externe">Emails externes</option>
+        </select>
+
         <select
           value={filters.priorite}
-          onChange={(e) => onFilterChange('priorite', e.target.value)}
-          className="px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          onChange={(event) => onFilterChange("priorite", event.target.value)}
+          className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
         >
-          <option value="ALL">Toutes priorités</option>
+          <option value="ALL">Toutes priorites</option>
           <option value="HAUTE">Haute</option>
           <option value="NORMALE">Normale</option>
           <option value="BASSE">Basse</option>

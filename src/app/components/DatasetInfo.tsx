@@ -1,15 +1,24 @@
-import { motion } from 'motion/react';
-import { Database, Calendar, TrendingUp } from 'lucide-react';
-import { datasetMetadata } from '../data/mockData';
+import { motion } from "motion/react";
+import { Database, Calendar, TrendingUp } from "lucide-react";
+import { useAPI } from "../hooks/useAPI";
+import { datasetMetadata } from "../data/mockData";
+import { getDatasetInfo } from "../lib/api";
 
 export function DatasetInfo() {
+  const { data } = useAPI(getDatasetInfo, {
+    initialData: datasetMetadata,
+    delay: 0,
+  });
+
+  const displayData = data ?? datasetMetadata;
+
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    return new Date(dateString).toLocaleString("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
@@ -26,7 +35,7 @@ export function DatasetInfo() {
             <div>
               <p className="text-xs text-muted-foreground">Dataset Codix</p>
               <p className="text-sm font-semibold text-foreground">
-                {datasetMetadata.total_emails.toLocaleString('fr-FR')} emails
+                {displayData.total_emails.toLocaleString("fr-FR")} emails
               </p>
             </div>
           </div>
@@ -36,9 +45,9 @@ export function DatasetInfo() {
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-secondary" />
             <div>
-              <p className="text-xs text-muted-foreground">Dernière mise à jour</p>
+              <p className="text-xs text-muted-foreground">Derniere mise a jour</p>
               <p className="text-sm font-semibold text-foreground">
-                {formatDate(datasetMetadata.derniere_mise_a_jour)}
+                {formatDate(displayData.derniere_mise_a_jour)}
               </p>
             </div>
           </div>
@@ -48,17 +57,17 @@ export function DatasetInfo() {
           <div className="flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-primary" />
             <div>
-              <p className="text-xs text-muted-foreground">Précision du modèle</p>
+              <p className="text-xs text-muted-foreground">Precision du modele</p>
               <p className="text-sm font-semibold text-foreground">
-                {datasetMetadata.modele_accuracy}% ({datasetMetadata.modele_version})
+                {displayData.modele_accuracy}% ({displayData.modele_version})
               </p>
             </div>
           </div>
         </div>
 
         <div className="text-right">
-          <p className="text-xs text-muted-foreground">Période d'analyse</p>
-          <p className="text-sm font-medium text-foreground">{datasetMetadata.periode_analyse}</p>
+          <p className="text-xs text-muted-foreground">Periode d'analyse</p>
+          <p className="text-sm font-medium text-foreground">{displayData.periode_analyse}</p>
         </div>
       </div>
     </motion.div>

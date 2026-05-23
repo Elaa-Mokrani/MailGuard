@@ -1,5 +1,6 @@
-import { createBrowserRouter } from "react-router";  // ← Changez cette ligne
+import { createBrowserRouter } from "react-router";
 import { EmailLayout } from "./components/EmailLayout";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 import EmailDashboard from "./pages/EmailDashboard";
 import EmailAnalysis from "./pages/EmailAnalysis";
 import AnalyseRisque from "./pages/AnalyseRisque";
@@ -7,39 +8,52 @@ import Clients from "./pages/Clients";
 import Alertes from "./pages/Alertes";
 import Historique from "./pages/Historique";
 import Parametres from "./pages/Parametres";
+import LoginPage from "./pages/LoginPage";
 import { NotFound } from "./pages/NotFound";
+
+function ProtectedPage({ children }: { children: React.ReactNode }) {
+  return (
+    <ProtectedRoute>
+      <EmailLayout>{children}</EmailLayout>
+    </ProtectedRoute>
+  );
+}
 
 export const router = createBrowserRouter([
   {
+    path: "/login",
+    element: <LoginPage />,
+  },
+  {
     path: "/",
-    element: <EmailLayout><EmailDashboard /></EmailLayout>,
+    element: <ProtectedPage><EmailDashboard /></ProtectedPage>,
   },
   {
     path: "/emails",
-    element: <EmailLayout><EmailAnalysis /></EmailLayout>,
+    element: <ProtectedPage><EmailAnalysis /></ProtectedPage>,
   },
   {
     path: "/analyse-risque",
-    element: <EmailLayout><AnalyseRisque /></EmailLayout>,
+    element: <ProtectedPage><AnalyseRisque /></ProtectedPage>,
   },
   {
     path: "/clients",
-    element: <EmailLayout><Clients /></EmailLayout>,
+    element: <ProtectedPage><Clients /></ProtectedPage>,
   },
   {
     path: "/alertes",
-    element: <EmailLayout><Alertes /></EmailLayout>,
+    element: <ProtectedPage><Alertes /></ProtectedPage>,
   },
   {
     path: "/historique",
-    element: <EmailLayout><Historique /></EmailLayout>,
+    element: <ProtectedPage><Historique /></ProtectedPage>,
   },
   {
     path: "/parametres",
-    element: <EmailLayout><Parametres /></EmailLayout>,
+    element: <ProtectedPage><Parametres /></ProtectedPage>,
   },
   {
     path: "*",
-    element: <EmailLayout><NotFound /></EmailLayout>,
+    element: <ProtectedPage><NotFound /></ProtectedPage>,
   },
 ]);

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   LayoutDashboard,
@@ -14,14 +14,16 @@ import {
   BarChart3,
   Moon,
   Sun,
+  LogOut,
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { addUserHistoryEvent } from '../lib/history';
 import logo from '../../imports/cropped_circle_image_(2).png';
 
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/emails', icon: Mail, label: 'Emails' },
-  { path: '/analyse-risque', icon: BarChart3, label: 'Analyse Risque' },
+  { path: '/analyse-risque', icon: BarChart3, label: 'Modele BiLSTM' },
   { path: '/clients', icon: Users, label: 'Clients' },
   { path: '/alertes', icon: AlertTriangle, label: 'Alertes' },
   { path: '/historique', icon: History, label: 'Historique' },
@@ -34,8 +36,28 @@ interface EmailLayoutProps {
 
 export function EmailLayout({ children }: EmailLayoutProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { isDark, toggleTheme } = useTheme();
+
+  const handleLogout = () => {
+    let session: { email?: string; name?: string } | null = null;
+    try {
+      session = JSON.parse(localStorage.getItem('mailguard_session') || 'null');
+    } catch {
+      session = null;
+    }
+
+    addUserHistoryEvent({
+      type: 'logout',
+      client: session?.name ?? 'Utilisateur MailGuard',
+      titre: 'Deconnexion utilisateur',
+      description: `${session?.email ?? 'Utilisateur'} s'est deconnecte de MailGuard`,
+      statut: 'succes',
+    });
+    localStorage.removeItem('mailguard_session');
+    navigate('/login', { replace: true });
+  };
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -230,6 +252,17 @@ export function EmailLayout({ children }: EmailLayoutProps) {
                 }}
                 className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full"
               />
+            </motion.button>
+
+            {/* Logout */}
+            <motion.button
+              onClick={handleLogout}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="p-2 hover:bg-destructive/10 rounded-xl transition-colors text-muted-foreground hover:text-destructive"
+              title="Se deconnecter"
+            >
+              <LogOut className="w-5 h-5" />
             </motion.button>
 
             {/* User Avatar */}

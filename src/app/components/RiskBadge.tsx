@@ -1,17 +1,14 @@
+import { getRiskBadgeStyle, normalizeRiskLevel } from "../lib/risk";
+
 interface RiskBadgeProps {
   score: number;
+  risque?: string | null;
   size?: "sm" | "md" | "lg";
   showLabel?: boolean;
 }
 
-export function RiskBadge({ score, size = "md", showLabel = true }: RiskBadgeProps) {
-  const getRiskLevel = (score: number) => {
-    if (score >= 80) return { label: "Risque Élevé", color: "#EF4444" };
-    if (score >= 60) return { label: "Moyen", color: "#F59E0B" };
-    return { label: "Risque Faible", color: "#10B981" };
-  };
-
-  const level = getRiskLevel(score);
+export function RiskBadge({ score, risque, size = "md", showLabel = true }: RiskBadgeProps) {
+  const level = getRiskBadgeStyle(normalizeRiskLevel(risque, score));
 
   const sizeClasses = {
     sm: "px-2 py-0.5 text-xs",
@@ -29,7 +26,7 @@ export function RiskBadge({ score, size = "md", showLabel = true }: RiskBadgePro
       }}
     >
       {score}
-      {showLabel && <span className="opacity-75">· {level.label}</span>}
+      {showLabel && <span className="opacity-75">- {level.label}</span>}
     </span>
   );
 }
